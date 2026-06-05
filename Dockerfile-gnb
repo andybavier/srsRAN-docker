@@ -53,7 +53,10 @@ RUN apt-get update && \
 # ADD . /src/
 # An alternative could be to download the repo
 ARG SRSRAN_REF
-RUN git clone --depth 1 --branch ${SRSRAN_REF} https://github.com/srsran/srsRAN_Project.git /src
+RUN git init /src && \
+    git -C /src remote add origin https://github.com/srsran/srsRAN_Project.git && \
+    git -C /src fetch --depth 1 origin ${SRSRAN_REF} && \
+    git -C /src checkout --detach FETCH_HEAD
 
 # Install srsRAN build dependencies
 RUN /src/docker/scripts/install_dependencies.sh build && \
