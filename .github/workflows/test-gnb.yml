@@ -11,6 +11,10 @@ on:
         description: GHCR image tag
         required: true
         default: test-2be82d8
+      march:
+        description: Compiler CPU architecture target
+        required: true
+        default: x86-64-v2
 
 permissions:
   contents: read
@@ -41,6 +45,7 @@ jobs:
           tags: ghcr.io/${{ github.repository_owner }}/srsran-gnb:${{ inputs.image_tag }}
           build-args: |
             SRSRAN_REF=${{ inputs.upstream_ref }}
+            MARCH=${{ inputs.march }}
             VERSION=${{ inputs.image_tag }}
             VCS_URL=${{ github.server_url }}/${{ github.repository }}
             VCS_REF=${{ github.sha }}
