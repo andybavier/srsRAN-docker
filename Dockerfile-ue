@@ -5,6 +5,7 @@
 
 ARG OS_VERSION=22.04
 ARG SRSRAN_REF=release_23_11
+ARG MARCH=x86-64-v2
 
 ##################
 # Stage 1: Build #
@@ -34,11 +35,20 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 ARG SRSRAN_REF
-RUN git clone --depth 1 --branch ${SRSRAN_REF} https://github.com/srsran/srsRAN_4G.git /src
+RUN git init /src && \
+    git -C /src remote add origin https://github.com/srsran/srsRAN_4G.git && \
+    git -C /src fetch --depth 1 origin ${SRSRAN_REF} && \
+    git -C /src checkout --detach FETCH_HEAD
 
 WORKDIR /src/build
 
-RUN cmake ../
+ARG MARCH
+RUN cmake ../ \
+    -DGCC_ARCH=${MARCH} \
+    -DENABLE_AVX=OFF \
+    -DENABLE_AVX2=OFF \
+    -DENABLE_FMA=OFF \
+    -DENABLE_AVX512=OFF
 RUN make -j"$(nproc)"
 RUN make install
 
