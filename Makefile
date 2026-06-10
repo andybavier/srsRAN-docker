@@ -32,6 +32,7 @@ SRSRAN_GNB_REF           ?= release_25_10
 SRSRAN_UE_REF            ?= release_23_11
 OCUDU_REF                ?= release_26_04
 UERANSIM_REF             ?= v3.2.7
+OCUDU_FORCE_MIN_POOL_WORKERS ?=
 
 SRSRAN_GNB_REPO          ?= https://github.com/srsran/srsRAN_Project.git
 SRSRAN_UE_REPO           ?= https://github.com/srsran/srsRAN_4G.git
@@ -61,7 +62,7 @@ docker-build:
 		case $$target in \
 			gnb)    _TARGET_BUILD_ARGS="--build-arg SRSRAN_REF=$(SRSRAN_GNB_REF)" ;; \
 			ue)     _TARGET_BUILD_ARGS="--build-arg SRSRAN_REF=$(SRSRAN_UE_REF)" ;; \
-			ocudu)  _TARGET_BUILD_ARGS="--build-arg OCUDU_REF=$(OCUDU_REF)" ;; \
+			ocudu)  _TARGET_BUILD_ARGS="--build-arg OCUDU_REF=$(OCUDU_REF) --build-arg FORCE_MIN_POOL_WORKERS=$(OCUDU_FORCE_MIN_POOL_WORKERS)" ;; \
 			ueransim) _TARGET_BUILD_ARGS="--build-arg UERANSIM_REF=$(UERANSIM_REF)" ;; \
 			*)      _TARGET_BUILD_ARGS="" ;; \
 		esac; \
