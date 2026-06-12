@@ -16,12 +16,27 @@ on:
         default: "gnb ocudu"
 
 jobs:
+  prepare-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      targets: ${{ steps.prepare.outputs.targets }}
+    steps:
+      - name: Prepare matrix targets
+        id: prepare
+        shell: bash
+        run: |
+          set -euo pipefail
+          read -r -a targets <<< "${{ inputs.docker_targets }}"
+          json=$(printf '%s\n' "${targets[@]}" | jq -R . | jq -s -c .)
+          echo "targets=$json" >> "$GITHUB_OUTPUT"
+
   manual-image-build:
+    needs: prepare-matrix
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        target: ${{ fromJSON(format('["{0}"]', replace(inputs.docker_targets, ' ', '","'))) }}
+        target: ${{ fromJSON(needs.prepare-matrix.outputs.targets) }}
     permissions:
       contents: read
       packages: write
