@@ -18,25 +18,114 @@ on:
 jobs:
   manual-image-build:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(format('["{0}"]', replace(inputs.docker_targets, ' ', '","'))) }}
     permissions:
       contents: read
       packages: write
-    env:
-      REGISTRY: ghcr.io
-      DOCKER_REGISTRY: ghcr.io/
-      DOCKER_REPOSITORY: ${{ github.repository_owner }}/
-      DOCKER_TARGETS: ${{ inputs.docker_targets }}
-      DOCKER_TAG: ${{ inputs.docker_tag }}
     steps:
       - uses: actions/checkout@v6
 
       - uses: docker/login-action@v4.2.0
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push manual Docker images
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Prepare build metadata
+        id: prep
+        shell: bash
         run: |
-          make docker-build
-          make docker-push
+          set -euo pipefail
+
+          target='${{ matrix.target }}'
+          version=$(cat VERSION)
+          vcs_url=$(git remote get-url origin 2>/dev/null || echo "unknown")
+          vcs_ref="${GITHUB_SHA:-$(git rev-parse HEAD)}"
+          build_date=$(date -u "+%Y-%m-%dT%H:%M:%SZ")
+
+          case "$target" in
+            gnb)
+              upstream_repo='https://github.com/srsran/srsRAN_Project.git'
+              upstream_ref='release_25_10'
+              dockerfile='Dockerfile-gnb'
+              image_name='ghcr.io/${{ github.repository_owner }}/srsran-gnb:${{ inputs.docker_tag }}'
+              extra_args=$(cat <<'EOF'
+SRSRAN_REF=release_25_10
+MARCH=x86-64-v2
+FORCE_MIN_POOL_WORKERS=4
+EOF
+)
+              ;;
+            ocudu)
+              upstream_repo='https://gitlab.com/ocudu/ocudu.git'
+              upstream_ref='release_26_04'
+              dockerfile='Dockerfile-ocudu'
+              image_name='ghcr.io/${{ github.repository_owner }}/ocudu:${{ inputs.docker_tag }}'
+              extra_args=$(cat <<'EOF'
+OCUDU_REF=release_26_04
+MARCH=x86-64-v2
+FORCE_MIN_POOL_WORKERS=4
+EOF
+)
+              ;;
+            ue)
+              upstream_repo='https://github.com/srsran/srsRAN_4G.git'
+              upstream_ref='release_23_11'
+              dockerfile='Dockerfile-ue'
+              image_name='ghcr.io/${{ github.repository_owner }}/srsran-ue:${{ inputs.docker_tag }}'
+              extra_args=$(cat <<'EOF'
+SRSRAN_REF=release_23_11
+EOF
+)
+              ;;
+            ueransim)
+              upstream_repo='https://github.com/aligungr/UERANSIM.git'
+              upstream_ref='v3.2.7'
+              dockerfile='Dockerfile-ueransim'
+              image_name='ghcr.io/${{ github.repository_owner }}/ueransim:${{ inputs.docker_tag }}'
+              extra_args=$(cat <<'EOF'
+UERANSIM_REF=v3.2.7
+EOF
+)
+              ;;
+            *)
+              echo "Unsupported target: $target" >&2
+              exit 1
+              ;;
+          esac
+
+          upstream_commit=$(git ls-remote "$upstream_repo" \
+            "refs/tags/${upstream_ref}^{}" \
+            "refs/tags/${upstream_ref}" \
+            "refs/heads/${upstream_ref}" 2>/dev/null | awk 'NR == 1 { print $1; found = 1 } END { if (!found) print "unknown" }')
+
+          {
+            echo "dockerfile=$dockerfile"
+            echo "image_name=$image_name"
+            echo "cache_scope=$target"
+            echo "build_args<<EOF"
+            echo "VERSION=$version"
+            echo "VCS_URL=$vcs_url"
+            echo "VCS_REF=$vcs_ref"
+            echo "BUILD_DATE=$build_date"
+            echo "UPSTREAM_COMMIT=$upstream_commit"
+            echo "$extra_args"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build and push ${{ matrix.target }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ steps.prep.outputs.dockerfile }}
+          target: ${{ matrix.target }}
+          push: true
+          tags: ${{ steps.prep.outputs.image_name }}
+          build-args: ${{ steps.prep.outputs.build_args }}
+          cache-from: type=gha,scope=${{ steps.prep.outputs.cache_scope }}
+          cache-to: type=gha,mode=max,scope=${{ steps.prep.outputs.cache_scope }}
