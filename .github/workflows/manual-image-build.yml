@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2024 Intel Corporation
+
+name: Manual test image build
+
+on:
+  workflow_dispatch:
+    inputs:
+      docker_tag:
+        description: Docker tag to publish
+        required: true
+        default: test-portable-march
+      docker_targets:
+        description: Space-separated Makefile targets to build
+        required: true
+        default: "gnb ocudu"
+
+jobs:
+  manual-image-build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      REGISTRY: ghcr.io
+      DOCKER_REGISTRY: ghcr.io/
+      DOCKER_REPOSITORY: ${{ github.repository_owner }}/
+      DOCKER_TARGETS: ${{ inputs.docker_targets }}
+      DOCKER_TAG: ${{ inputs.docker_tag }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: docker/login-action@v4.2.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push manual Docker images
+        run: |
+          make docker-build
+          make docker-push
