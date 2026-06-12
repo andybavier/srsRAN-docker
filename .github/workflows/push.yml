@@ -5,6 +5,15 @@ name: GitHub release and Docker images
 
 on:
   workflow_dispatch:
+    inputs:
+      docker_tag:
+        description: Docker tag to publish
+        required: true
+        default: test-portable-march
+      docker_targets:
+        description: Space-separated Makefile targets to build
+        required: true
+        default: "gnb ocudu"
   push:
     branches:
       - main
@@ -12,6 +21,29 @@ on:
       - v*
 
 jobs:
+  manual-image-build:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    env:
+      REGISTRY: docker.io
+      DOCKER_REGISTRY: docker.io/
+      DOCKER_REPOSITORY: aetherproject/
+      DOCKER_TARGETS: ${{ inputs.docker_targets }}
+      DOCKER_TAG: ${{ inputs.docker_tag }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: docker/login-action@v4.2.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+      - name: Build and push manual Docker images
+        run: |
+          make docker-build
+          make docker-push
+
   # CAUTION: Other actions depend on this name "tag-github"
   tag-github:
     runs-on: ubuntu-latest
